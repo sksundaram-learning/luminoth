@@ -9,8 +9,8 @@ class Subnet(snt.AbstractModule):
 
     Simply a series of Conv2D layers with activations in the middle.
     """
-    def __init__(self, config, num_final_channels, final_bias, prefix=None,
-                 name='subnet'):
+    def __init__(self, config, num_final_channels, final_bias,
+                 l2_regularization_scale, prefix=None, name='subnet'):
         super(Subnet, self).__init__(name=name)
         if prefix is None:
             prefix = name
@@ -26,6 +26,9 @@ class Subnet(snt.AbstractModule):
         )
         self._final_activation = get_activation_function(
             config.final.activation
+        )
+        self._regularizer = tf.contrib.layers.l2_regularizer(
+            l2_regularization_scale
         )
 
     def _build(self, fpn_level):
@@ -49,11 +52,16 @@ class Subnet(snt.AbstractModule):
                         mean=0.0, stddev=0.01
                     ),
                 },
+                regularizers={
+                    'w': self._regularizer,
+                },
                 name='{}_hidden_{}'.format(self._prefix, i)
             )
             layers.append(new_layer)
 
-        pred = fpn_level
+        pred = tf.nn.dropout(
+            fpn_level, keep_prob=self._config.dropout_keep_prob,
+        )
         for layer in layers:
             pred = self._hidden_activation(layer(pred))
 
@@ -66,6 +74,13 @@ class Subnet(snt.AbstractModule):
                 ),
                 'b': self._final_bias
             },
+            regularizers={
+                'w': self._regularizer,
+            },
             name='{}_final'.format(self._prefix)
+        )
+        pred = tf.nn.dropout(
+            pred,
+            keep_prob=self._config.dropout_keep_prob,
         )
         return self._final_activation(final_layer(pred))

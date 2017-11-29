@@ -13,6 +13,7 @@ class BoxSubnet(Subnet):
         num_final_channels = num_anchors * 4
         final_bias = tf.constant_initializer(0)
         super(BoxSubnet, self).__init__(
-            config, num_final_channels, final_bias=final_bias, name=name
+            config, num_final_channels, final_bias=final_bias,
+            l2_regularization_scale=config.l2_regularization_scale, name=name
         )
         self._config = config

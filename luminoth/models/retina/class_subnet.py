@@ -23,6 +23,7 @@ class ClassSubnet(Subnet):
             * num_anchors
         )
         super(ClassSubnet, self).__init__(
-            config, num_final_chns, final_bias=final_bias, name=name
+            config, num_final_chns, final_bias=final_bias,
+            l2_regularization_scale=config.l2_regularization_scale, name=name
         )
         self._config = config

@@ -40,6 +40,8 @@ model:
 
   # Config for BBox delta prediction subnets.
   box_subnet:
+    l2_regularization_scale: 0.0005
+    dropout_keep_prob: 0.9
     # Config for the hidden layers of the net.
     hidden:
       depth: 4
@@ -55,7 +57,8 @@ model:
 
   # Config for classification subnet(s).
   class_subnet:
-    share_weights: True
+    l2_regularization_scale: 0.0005
+    dropout_keep_prob: 0.9
     # Config for the hidden layers of the net.
     hidden:
       # Number of layers.
@@ -63,7 +66,7 @@ model:
       # Number of output channels.
       channels: 256
       kernel_shape: [3, 3]
-      activation: relu
+      activation: relu6
     # Config for the final layer of the net.
     final:
       init_bias:
