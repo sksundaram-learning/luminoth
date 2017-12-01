@@ -2,6 +2,7 @@ import sonnet as snt
 import tensorflow as tf
 
 from luminoth.utils.bbox_transform_tf import change_order
+from luminoth.utils.safe_wrappers import safe_softmax
 
 
 class RetinaProposal(snt.AbstractModule):
@@ -132,9 +133,8 @@ class RetinaProposal(snt.AbstractModule):
         proposal_label = tf.concat(
             selected_labels, axis=0, name='concat_scores'
         )
-        proposal_label_prob = tf.nn.softmax(
-            tf.concat(selected_scores, axis=0, name='concat_scores'),
-            name='softmax_for_probs'
+        proposal_label_prob = safe_softmax(
+            tf.concat(selected_scores, axis=0, name='concat_scores')
         )
 
         # Get topK detections of all classes.
