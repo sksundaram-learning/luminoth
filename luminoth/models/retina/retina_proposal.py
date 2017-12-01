@@ -1,7 +1,7 @@
 import sonnet as snt
 import tensorflow as tf
 
-from luminoth.utils.bbox_transform_tf import change_order
+from luminoth.utils.bbox_transform_tf import change_order, decode
 from luminoth.utils.safe_wrappers import safe_softmax
 
 
@@ -23,14 +23,16 @@ class RetinaProposal(snt.AbstractModule):
         self._class_nms_threshold = config.class_nms_threshold
         # Maximum number of detections to return.
         self._total_max_detections = config.total_max_detections
+        # Number of proposals to decode before applying nms.
+        self._pre_nms_top_n = config.pre_nms_top_n
 
         self._min_prob_threshold = config.min_prob_threshold
 
-    def _build(self, cls_score, proposals, all_anchors):
+    def _build(self, cls_score, bbox_preds, all_anchors):
         """
         Args:
             cls_score: (num_proposals,)
-            proposals: (num_proposals, 4)
+            bbox_preds: (num_proposals, 4)
             all_anchors: (num_proposals, 4)
 
         Returns:
@@ -58,10 +60,10 @@ class RetinaProposal(snt.AbstractModule):
             non_background_filter, prob_filter, name='combined_filters'
         )
 
-        total_proposals = tf.shape(proposals)[0]
+        total_proposals = tf.shape(bbox_preds)[0]
 
-        proposals = tf.boolean_mask(
-            proposals, proposal_filter, name='mask_proposals'
+        bbox_preds = tf.boolean_mask(
+            bbox_preds, proposal_filter, name='mask_proposals'
         )
         proposal_label = tf.boolean_mask(
             proposal_label, proposal_filter, name='mask_labels'
@@ -69,15 +71,37 @@ class RetinaProposal(snt.AbstractModule):
         cls_score = tf.boolean_mask(
             cls_score, proposal_filter, name='mask_scores'
         )
+        anchors = tf.boolean_mask(
+            all_anchors, proposal_filter, name='mask_anchors'
+        )
 
-        filtered_proposals = tf.shape(proposals)[0]
+        filtered_proposals = tf.shape(bbox_preds)[0]
 
         tf.summary.scalar(
             'background_proposals',
             total_proposals - filtered_proposals,
             ['retina']
         )
+        # Get top `pre_nms_top_n` indices by sorting the proposals by score.
+        k = tf.minimum(self._pre_nms_top_n, tf.shape(cls_score)[0])
+        top_k = tf.nn.top_k(tf.reduce_max(cls_score, axis=1), k=k)
 
+        top_preds = tf.gather(
+            bbox_preds, top_k.indices, name='gather_preds'
+        )
+        top_anchors = tf.gather(
+            anchors, top_k.indices, name='gather_anchors'
+        )
+        top_labels = tf.gather(
+            proposal_label, top_k.indices,
+            name='gather_labels'
+        )
+        top_scores = tf.gather(
+            cls_score, top_k.indices,
+            name='gather_scores'
+        )
+
+        proposals = decode(top_anchors, top_preds)
         # We have to use the TensorFlow's bounding box convention to use the
         # included function for NMS.
         # After gathering results we should normalize it back.
@@ -89,9 +113,9 @@ class RetinaProposal(snt.AbstractModule):
         # For each class we want to filter those objects and apply NMS to them.
         for class_id in range(self._num_classes):
             # Filter objects Tensors with class.
-            class_filter = tf.equal(proposal_label, class_id)
+            class_filter = tf.equal(top_labels, class_id)
             class_objects_tf = tf.boolean_mask(objects_tf, class_filter)
-            this_class_score = tf.boolean_mask(cls_score, class_filter)
+            this_class_score = tf.boolean_mask(top_scores, class_filter)
             this_class_score = this_class_score[:, class_id + 1]
             this_class_score = tf.reshape(this_class_score, [-1])
 

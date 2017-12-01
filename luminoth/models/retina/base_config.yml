@@ -73,7 +73,7 @@ model:
         # These will be the initial scores (approx) of foregrounds and
         # background.
         foreground: -0.5
-        background: 2
+        background: 2.
       kernel_shape: [3, 3]
       # As a general rule, don't use softmax if you're activating with sigmoid,
       # and use it otherwise.
@@ -96,6 +96,8 @@ model:
     total_max_detections: 300
     # Minimum prob to be used as proposed object
     min_prob_threshold: 0.4
+    # Number of proposals to decode before applying nms.
+    pre_nms_top_n: 5000
 
 dataset:
   type: tfrecord

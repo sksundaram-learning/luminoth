@@ -9,7 +9,6 @@ from luminoth.models.retina.retina_target import RetinaTarget
 from luminoth.models.retina.retina_proposal import RetinaProposal
 
 from luminoth.utils.anchors import generate_anchors_reference
-from luminoth.utils.bbox_transform_tf import decode
 from luminoth.utils.image import adjust_bboxes
 from luminoth.utils.losses import smooth_l1_loss, focal_loss
 from luminoth.utils.vars import get_saver
@@ -162,9 +161,8 @@ class Retina(snt.AbstractModule):
             }
         }
 
-        proposals = decode(all_anchors, bbox_preds)
         proposal_dict = self._proposal(
-            class_scores, proposals, all_anchors
+            class_scores, bbox_preds, all_anchors
         )
 
         pred_dict['classification_prediction'] = {
