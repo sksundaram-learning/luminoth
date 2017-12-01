@@ -94,13 +94,6 @@ class RetinaProposal(snt.AbstractModule):
             this_class_score = tf.boolean_mask(cls_score, class_filter)
             this_class_score = this_class_score[:, class_id + 1]
             this_class_score = tf.reshape(this_class_score, [-1])
-            this_class_score = tf.Print(
-                this_class_score,
-                [
-                    tf.shape(class_objects_tf), tf.shape(this_class_score)
-                ],
-                message='SHP_OBJS, SHP_SCORE: '
-            )
 
             # Apply class NMS.
             class_selected_idx = tf.image.non_max_suppression(

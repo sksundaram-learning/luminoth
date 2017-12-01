@@ -214,22 +214,6 @@ class Retina(snt.AbstractModule):
             cls_scores = tf.boolean_mask(
                 cls_scores, filter_ignored, name='mask_scores')
 
-            cls_target = tf.Print(
-                cls_target,
-                [cls_target, cls_scores],
-                message="TARG, SCORE: ",
-                summarize=210
-            )
-
-            nonbackground = tf.greater(tf.argmax(cls_scores, axis=1), 0)
-            nonbackground_n = tf.shape(tf.where(nonbackground))[0]
-
-            nonbackground_t = tf.greater(cls_target, 0)
-            nonbackground_t_n = tf.shape(tf.where(nonbackground_t))[0]
-            cls_scores = tf.Print(cls_scores,
-                                  [nonbackground_n, nonbackground_t_n],
-                                  message='NBK, NBK_T: ')
-
             bbox_preds = tf.boolean_mask(
                 bbox_preds, filter_ignored, name='mask_proposals')
             bbox_target = tf.boolean_mask(
@@ -252,13 +236,6 @@ class Retina(snt.AbstractModule):
             else:
                 total_cls_loss = tf.reduce_mean(cls_loss)
                 total_reg_loss = tf.reduce_mean(reg_loss)
-
-            total_reg_loss = tf.Print(
-                total_reg_loss,
-                [total_cls_loss, total_reg_loss, cls_loss, reg_loss],
-                message="CLS_TOT, REG_TOT, CLS, REG, CLS_SH, REG_SH: ",
-                summarize=20
-            )
 
             tf.losses.add_loss(total_cls_loss)
             tf.losses.add_loss(total_reg_loss)
