@@ -217,6 +217,10 @@ class Retina(snt.AbstractModule):
             bbox_target = tf.boolean_mask(
                 bbox_target, filter_ignored, name='mask_bbox_targets')
 
+            tf.summary.scalar(
+                'nonbackground_n',
+                tf.count_nonzero(tf.argmax(cls_scores, axis=1)), ['retina']
+            )
             cls_loss = focal_loss(
                 cls_scores, cls_target,
                 self._num_classes, gamma=self._gamma,

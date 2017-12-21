@@ -19,13 +19,13 @@ model:
       # Regularization
       weight_decay: 0.0005
     num_channels: 256  # paper values
-    architecture: resnet_v2_101
+    architecture: resnet_v1_101
     train_base: True
     download: True
     endpoints:
-      - 'block4/unit_3/bottleneck_v2/conv3'
-      - 'block3/unit_23/bottleneck_v2/conv1'
-      - 'block2/unit_4/bottleneck_v2/conv1'
+      - 'block4/unit_3/bottleneck_v1/conv3'
+      - 'block3/unit_23/bottleneck_v1/conv1'
+      - 'block2/unit_4/bottleneck_v1/conv1'
 
   loss:
     gamma: 2.0  # paper value
@@ -41,7 +41,7 @@ model:
   # Config for BBox delta prediction subnets.
   box_subnet:
     l2_regularization_scale: 0.0005
-    dropout_keep_prob: 0.9
+    dropout_keep_prob: 0.8
     # Config for the hidden layers of the net.
     hidden:
       depth: 4
@@ -58,7 +58,7 @@ model:
   # Config for classification subnet(s).
   class_subnet:
     l2_regularization_scale: 0.0005
-    dropout_keep_prob: 0.9
+    dropout_keep_prob: 0.8
     # Config for the hidden layers of the net.
     hidden:
       # Number of layers.
@@ -103,8 +103,8 @@ dataset:
   type: tfrecord
   split: 'train'
   image_preprocessing:
-    min_size: 600
-    max_size: 1024
+    min_size: 300
+    max_size: 900
   # Data augmentation techniques
   data_augmentation:
     - flip:
@@ -114,21 +114,21 @@ dataset:
     # If you resize to too small images, you may end up not having any anchors
     # that aren't partially outside the image.
     - resize:
-        min_size: 600
-        max_size: 1024
-        prob: 0.2
+        min_size: 300
+        max_size: 900
+        prob: 0.05
     - patch:
-        min_height: 600
-        min_width: 600
-        prob: 0.2
+        min_height: 300
+        min_width: 300
+        prob: 0.1
     - distortion:
         brightness:
-          max_delta: 0.2
+          max_delta: 0.1
         hue:
-          max_delta: 0.2
+          max_delta: 0.05
         saturation:
-          lower: 0.5
-          upper: 1.5
+          lower: 0.8
+          upper: 1.2
         prob: 0.3
 
 eval:
