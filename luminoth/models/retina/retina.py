@@ -233,8 +233,18 @@ class Retina(snt.AbstractModule):
             )
 
             if self._reduce_sum:
-                total_cls_loss = tf.reduce_sum(cls_loss)
-                total_reg_loss = tf.reduce_sum(reg_loss)
+                # We normalize the loss by dividing it by the number of anchors
+                # assigned to gt boxes.
+                foreground_n = tf.count_nonzero(cls_target)
+                foreground_n = tf.to_float(foreground_n)
+                total_cls_loss = tf.truediv(
+                    tf.reduce_sum(cls_loss), foreground_n,
+                    name='normalized_cls_loss'
+                )
+                total_reg_loss = tf.truediv(
+                    tf.reduce_sum(reg_loss), foreground_n,
+                    name='normalized_reg_loss'
+                )
             else:
                 total_cls_loss = tf.reduce_mean(cls_loss)
                 total_reg_loss = tf.reduce_mean(reg_loss)
