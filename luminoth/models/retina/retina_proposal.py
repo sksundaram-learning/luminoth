@@ -2,7 +2,6 @@ import sonnet as snt
 import tensorflow as tf
 
 from luminoth.utils.bbox_transform_tf import change_order, decode
-from luminoth.utils.safe_wrappers import safe_softmax
 
 
 class RetinaProposal(snt.AbstractModule):
@@ -28,10 +27,10 @@ class RetinaProposal(snt.AbstractModule):
 
         self._min_prob_threshold = config.min_prob_threshold
 
-    def _build(self, cls_score, bbox_preds, all_anchors):
+    def _build(self, cls_prob, bbox_preds, all_anchors):
         """
         Args:
-            cls_score: (num_proposals,)
+            cls_prob: (num_proposals,)
             bbox_preds: (num_proposals, 4)
             all_anchors: (num_proposals, 4)
 
@@ -43,13 +42,11 @@ class RetinaProposal(snt.AbstractModule):
         """
         # First we want get the most probable label for each proposal
         # We still have the background on idx 0 so we subtract 1 to the idxs.
-        proposal_label = tf.argmax(cls_score, axis=1, name='label_argmax') - 1
+        proposal_label = tf.argmax(cls_prob, axis=1, name='label_argmax') - 1
 
         # We are going to use only the non-background proposals.
         non_background_filter = tf.greater_equal(proposal_label, 0)
-        # TODO: optimize this. We're doing softmax on the same scores several
-        # times per step.
-        cls_prob = tf.nn.softmax(cls_score)
+
         prob_filter = tf.greater(
             tf.reduce_max(cls_prob, axis=1, name='reduce_probs'),
             self._min_prob_threshold,
@@ -68,8 +65,8 @@ class RetinaProposal(snt.AbstractModule):
         proposal_label = tf.boolean_mask(
             proposal_label, proposal_filter, name='mask_labels'
         )
-        cls_score = tf.boolean_mask(
-            cls_score, proposal_filter, name='mask_scores'
+        cls_prob = tf.boolean_mask(
+            cls_prob, proposal_filter, name='mask_probs'
         )
         anchors = tf.boolean_mask(
             all_anchors, proposal_filter, name='mask_anchors'
@@ -83,8 +80,8 @@ class RetinaProposal(snt.AbstractModule):
             ['retina']
         )
         # Get top `pre_nms_top_n` indices by sorting the proposals by score.
-        k = tf.minimum(self._pre_nms_top_n, tf.shape(cls_score)[0])
-        top_k = tf.nn.top_k(tf.reduce_max(cls_score, axis=1), k=k)
+        k = tf.minimum(self._pre_nms_top_n, tf.shape(cls_prob)[0])
+        top_k = tf.nn.top_k(tf.reduce_max(cls_prob, axis=1), k=k)
 
         top_preds = tf.gather(
             bbox_preds, top_k.indices, name='gather_preds'
@@ -96,9 +93,9 @@ class RetinaProposal(snt.AbstractModule):
             proposal_label, top_k.indices,
             name='gather_labels'
         )
-        top_scores = tf.gather(
-            cls_score, top_k.indices,
-            name='gather_scores'
+        top_prob = tf.gather(
+            cls_prob, top_k.indices,
+            name='gather_probs'
         )
 
         proposals = decode(top_anchors, top_preds)
@@ -108,33 +105,33 @@ class RetinaProposal(snt.AbstractModule):
         objects_tf = change_order(proposals)
 
         selected_boxes = []
-        selected_scores = []
+        selected_prob = []
         selected_labels = []
         # For each class we want to filter those objects and apply NMS to them.
         for class_id in range(self._num_classes):
             # Filter objects Tensors with class.
             class_filter = tf.equal(top_labels, class_id)
             class_objects_tf = tf.boolean_mask(objects_tf, class_filter)
-            this_class_score = tf.boolean_mask(top_scores, class_filter)
-            this_class_score = this_class_score[:, class_id + 1]
-            this_class_score = tf.reshape(this_class_score, [-1])
+            this_class_prob = tf.boolean_mask(top_prob, class_filter)
+            this_class_prob = this_class_prob[:, class_id + 1]
+            this_class_prob = tf.reshape(this_class_prob, [-1])
 
             # Apply class NMS.
             class_selected_idx = tf.image.non_max_suppression(
-                class_objects_tf, this_class_score,
+                class_objects_tf, this_class_prob,
                 self._class_max_detections,
                 iou_threshold=self._class_nms_threshold
             )
 
             # Using NMS resulting indices, gather values from Tensors.
             class_objects_tf = tf.gather(class_objects_tf, class_selected_idx)
-            this_class_score = tf.gather(
-                this_class_score, class_selected_idx)
+            this_class_prob = tf.gather(
+                this_class_prob, class_selected_idx)
 
             # We append values to a regular list which will later be transform
             # to a proper Tensor.
             selected_boxes.append(class_objects_tf)
-            selected_scores.append(this_class_score)
+            selected_prob.append(this_class_prob)
             # In the case of the class_id, since it is a loop on classes, we
             # already have a fixed class_id. We use `tf.tile` to create that
             # Tensor with the total number of indices returned by the NMS.
@@ -148,10 +145,10 @@ class RetinaProposal(snt.AbstractModule):
         # Return to the original convention.
         objects = change_order(objects_tf)
         proposal_label = tf.concat(
-            selected_labels, axis=0, name='concat_scores'
+            selected_labels, axis=0, name='concat_label'
         )
-        proposal_label_prob = safe_softmax(
-            tf.concat(selected_scores, axis=0, name='concat_scores')
+        proposal_label_prob = tf.concat(
+            selected_prob, axis=0, name='concat_prob'
         )
 
         # Get topK detections of all classes.
@@ -163,11 +160,9 @@ class RetinaProposal(snt.AbstractModule):
         top_k_proposal_label_prob = top_k.values
         top_k_objects = tf.gather(objects, top_k.indices)
         top_k_proposal_label = tf.gather(proposal_label, top_k.indices)
-        top_k_score = tf.gather(cls_score, top_k.indices)
 
         return {
             'objects': top_k_objects,
             'proposal_label': top_k_proposal_label,
-            'proposal_label_prob': top_k_proposal_label_prob,
-            'proposal_label_score': top_k_score
+            'proposal_label_prob': top_k_proposal_label_prob
         }

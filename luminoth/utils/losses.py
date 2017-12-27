@@ -1,12 +1,17 @@
 import tensorflow as tf
 
 
-def focal_loss(cls_scores, targets, num_classes, gamma=2.0,
-               weights=None, background_divider=1, use_softmax=False):
+def focal_loss(cls_score, cls_prob, targets, num_classes, gamma=2.0,
+               weights=1., background_divider=1):
     """Compute RetinaNet's focal loss.
 
+    We need both cls_score and cls_prob because Tensorflow's implementation
+    of cross entropy take scores and not probs, but we need the probs for the
+    focal weighting.
+
     Args:
-        cls_scores: shape (num_proposals, num_classes + 1)
+        cls_score: shape (num_proposals, num_classes + 1)
+        cls_prob: shape (num_proposals, num_classes + 1)
         targets: shape (num_proposals)
         num_classes: number of classes (not counting background)
         gamma: gamma parameter for focal loss.
@@ -14,16 +19,13 @@ def focal_loss(cls_scores, targets, num_classes, gamma=2.0,
             all weights will be 1.
     """
     with tf.name_scope('focal_loss'):
-        if weights is None:
-            weights = 1.
-
         targets_one_hot = tf.one_hot(
             tf.cast(targets, tf.int32),
             depth=num_classes + 1,
             name='one_hot_targets'
         )
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
-            labels=targets_one_hot, logits=cls_scores,
+            labels=targets_one_hot, logits=cls_score,
             name='compute_cross_entropy'
         )
         weights = tf.where(
@@ -34,13 +36,11 @@ def focal_loss(cls_scores, targets, num_classes, gamma=2.0,
         weighted_cross_entropy = tf.multiply(
             cross_entropy, weights, name='apply_weights'
         )
-        if use_softmax:
-            cls_scores = tf.nn.softmax(cls_scores)
         # Reduce max could be switched with reduce_sum, etc. as we're only
         # getting one element per row.
         focal_weights = tf.pow(
             1. - tf.reduce_max(
-                tf.multiply(cls_scores, targets_one_hot), axis=1
+                tf.multiply(cls_prob, targets_one_hot), axis=1
             ),
             gamma, name='power_gamma'
         )

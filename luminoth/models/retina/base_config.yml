@@ -77,10 +77,7 @@ model:
         foreground: -0.5
         background: 2.
       kernel_shape: [3, 3]
-      # As a general rule, don't use softmax if you're activating with sigmoid,
-      # and use it otherwise.
       activation: ""
-      use_softmax: True
 
   target:
     # Threshold with GT to be considered positive

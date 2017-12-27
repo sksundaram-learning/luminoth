@@ -52,8 +52,6 @@ class Retina(snt.AbstractModule):
         self._background_divider = float(
             self._config.model.loss.background_weight_divider)
 
-        self._use_softmax = self._config.model.class_subnet.final.use_softmax
-
         self._offset = self._config.model.anchors.offset
 
         self._share_weights = self._config.model.share_weights
@@ -152,20 +150,21 @@ class Retina(snt.AbstractModule):
             class_scores.append(level_class_scores)
             all_anchors.append(anchors)
 
-        class_scores = tf.concat(class_scores, axis=0)
+        cls_score = tf.concat(class_scores, axis=0)
+        cls_prob = tf.nn.softmax(cls_score)
 
         bbox_preds = tf.concat(bbox_preds, axis=0)
         all_anchors = tf.concat(all_anchors, axis=0)
 
         pred_dict = {
             'pre_nms_prediction': {
-                'cls_scores': class_scores,
+                'cls_score': cls_score,
+                'cls_prob': cls_prob,
                 'bbox_preds': bbox_preds,
             }
         }
-
         proposal_dict = self._proposal(
-            class_scores, bbox_preds, all_anchors
+            cls_prob, bbox_preds, all_anchors
         )
 
         pred_dict['classification_prediction'] = {
@@ -202,7 +201,8 @@ class Retina(snt.AbstractModule):
         """
         with tf.name_scope('losses'):
             pred_dict = pred_dict['pre_nms_prediction']
-            cls_scores = pred_dict['cls_scores']
+            cls_score = pred_dict['cls_score']
+            cls_prob = pred_dict['cls_prob']
             cls_target = pred_dict['cls_target']
 
             bbox_preds = pred_dict['bbox_preds']
@@ -212,8 +212,10 @@ class Retina(snt.AbstractModule):
             filter_ignored = tf.not_equal(cls_target, -1.)
             cls_target = tf.boolean_mask(
                 cls_target, filter_ignored, name='mask_targets')
-            cls_scores = tf.boolean_mask(
-                cls_scores, filter_ignored, name='mask_scores')
+            cls_score = tf.boolean_mask(
+                cls_score, filter_ignored, name='mask_scores')
+            cls_prob = tf.boolean_mask(
+                cls_prob, filter_ignored, name='mask_probs')
 
             bbox_preds = tf.boolean_mask(
                 bbox_preds, filter_ignored, name='mask_proposals')
@@ -222,15 +224,15 @@ class Retina(snt.AbstractModule):
 
             tf.summary.scalar(
                 'nonbackground_n',
-                tf.count_nonzero(tf.argmax(cls_scores, axis=1)), ['retina']
+                tf.count_nonzero(tf.argmax(cls_score, axis=1)), ['retina']
             )
             cls_loss = focal_loss(
-                cls_scores, cls_target,
+                cls_score, cls_prob, cls_target,
                 self._num_classes, gamma=self._gamma,
-                weights=self._class_weight,
-                background_divider=self._background_divider,
-                use_softmax=self._use_softmax
+                background_divider=self._background_divider
             )
+            cls_loss = cls_loss * self._class_weight
+
             reg_loss = smooth_l1_loss(
                 bbox_preds, bbox_target
             )
