@@ -29,8 +29,10 @@ model:
 
   loss:
     gamma: 2.0  # paper value
-    # Multiplier weight for the class loss.
+    # Weight for the class loss.
     class_weight: 1.
+    # Weight for the regression loss.
+    reg_weight: 10.
     # The weight of the loss for background will be divided by this number.
     # Due to our use of the focal loss, high values here are overkill.
     background_weight_divider: 16.

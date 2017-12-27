@@ -46,9 +46,12 @@ class Retina(snt.AbstractModule):
         self._losses_collections = ['retina_losses']
         self._reduce_sum = self._config.model.loss.reduce_sum
         self._gamma = self._config.model.loss.gamma
+
         self._class_weight = float(self._config.model.loss.class_weight)
+        self._reg_weight = float(self._config.model.loss.reg_weight)
         self._background_divider = float(
             self._config.model.loss.background_weight_divider)
+
         self._use_softmax = self._config.model.class_subnet.final.use_softmax
 
         self._offset = self._config.model.anchors.offset
@@ -231,6 +234,7 @@ class Retina(snt.AbstractModule):
             reg_loss = smooth_l1_loss(
                 bbox_preds, bbox_target
             )
+            reg_loss = reg_loss * self._reg_weight
 
             if self._reduce_sum:
                 # We normalize the loss by dividing it by the number of anchors
