@@ -29,6 +29,8 @@ model:
 
   loss:
     gamma: 2.0  # paper value
+    # Sigma value for L1 loss.
+    l1_sigma: 3.0
     # Weight for the class loss.
     class_weight: 1.
     # Weight for the regression loss.

@@ -46,6 +46,7 @@ class Retina(snt.AbstractModule):
         self._losses_collections = ['retina_losses']
         self._reduce_sum = self._config.model.loss.reduce_sum
         self._gamma = self._config.model.loss.gamma
+        self._l1_sigma = self._config.model.loss.l1_sigma
 
         self._class_weight = float(self._config.model.loss.class_weight)
         self._reg_weight = float(self._config.model.loss.reg_weight)
@@ -234,7 +235,7 @@ class Retina(snt.AbstractModule):
             cls_loss = cls_loss * self._class_weight
 
             reg_loss = smooth_l1_loss(
-                bbox_preds, bbox_target
+                bbox_preds, bbox_target, sigma=self._l1_sigma
             )
             reg_loss = reg_loss * self._reg_weight
 
